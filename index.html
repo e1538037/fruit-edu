@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>吃水果吧 - 早教互动</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      overflow: hidden;
+      font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      user-select: none;
+      height: 100vh;
+      width: 100vw;
+      transition: background 0.8s ease;
+    }
+
+    /* ====== Camera feed (mirrored, background) ====== */
+    #camera {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      object-fit: cover;
+      transform: scaleX(-1);
+      opacity: 0.10;
+      z-index: 0;
+    }
+
+    /* ====== Main stage ====== */
+    #stage {
+      position: relative;
+      z-index: 1;
+      width: 100vw; height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ====== Title bar ====== */
+    #title-bar {
+      position: absolute;
+      top: 30px;
+      text-align: center;
+    }
+    #title-bar h1 {
+      font-size: 42px;
+      color: #FF6B35;
+      text-shadow: 2px 2px 0 rgba(255,255,255,0.6);
+      letter-spacing: 6px;
+    }
+    #fruit-name {
+      font-size: 64px;
+      margin-top: 8px;
+      transition: opacity 0.3s, color 0.8s;
+      font-weight: bold;
+    }
+
+    /* ====== Fruit display ====== */
+    #fruit-container {
+      position: relative;
+      width: 500px;
+      height: 500px;
+      margin-top: 20px;
+    }
+
+    .fruit-img {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      border-radius: 24px;
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    #fruit-whole {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    #fruit-peeled {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+
+    /* Peeled state */
+    #fruit-container.peeled #fruit-whole {
+      opacity: 0;
+      transform: scale(1.1);
+    }
+    #fruit-container.peeled #fruit-peeled {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* Swipe animation */
+    #fruit-container.swipe-left {
+      animation: slideOutLeft 0.4s ease forwards;
+    }
+    #fruit-container.swipe-right {
+      animation: slideOutRight 0.4s ease forwards;
+    }
+    #fruit-container.slide-in-left {
+      animation: slideInFromRight 0.4s ease forwards;
+    }
+    #fruit-container.slide-in-right {
+      animation: slideInFromLeft 0.4s ease forwards;
+    }
+
+    @keyframes slideOutLeft {
+      to { transform: translateX(-120vw); opacity: 0; }
+    }
+    @keyframes slideOutRight {
+      to { transform: translateX(120vw); opacity: 0; }
+    }
+    @keyframes slideInFromRight {
+      from { transform: translateX(120vw); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-120vw); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* ====== Peel progress bar ====== */
+    #peel-progress-wrap {
+      position: absolute;
+      bottom: 180px;
+      width: 260px;
+      height: 20px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 10px;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.3s;
+      border: 2px solid rgba(255,255,255,0.8);
+    }
+    #peel-progress-wrap.show {
+      opacity: 1;
+    }
+    #peel-progress {
+      height: 100%;
+      width: 0%;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #FF6B35, #FFE66D);
+      transition: width 0.1s linear;
+    }
+
+    /* ====== Gesture indicator ====== */
+    #gesture-indicator {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      padding: 12px 32px;
+      border-radius: 40px;
+      font-size: 22px;
+      z-index: 10;
+      transition: opacity 0.3s, background 0.3s;
+      backdrop-filter: blur(10px);
+    }
+    #gesture-indicator.fist {
+      background: rgba(255, 107, 53, 0.85);
+    }
+
+    /* ====== Progress dots (fruit icons) ====== */
+    #dots {
+      position: absolute;
+      bottom: 90px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .dot {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      border: 3px solid transparent;
+      position: relative;
+    }
+    .dot.active {
+      transform: scale(1.3);
+      border-color: #FF6B35;
+      background: rgba(255,255,255,0.8);
+    }
+    .dot.completed {
+      background: rgba(255,255,255,0.9);
+    }
+    .dot.completed::after {
+      content: '✓';
+      position: absolute;
+      top: -6px; right: -6px;
+      font-size: 14px;
+      background: #4CAF50;
+      color: #fff;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ====== Peel prompt ====== */
+    #peel-prompt {
+      position: absolute;
+      bottom: 220px;
+      font-size: 26px;
+      color: #FF6B35;
+      opacity: 0;
+      transition: opacity 0.5s;
+      animation: bounce 1.5s infinite;
+      text-shadow: 1px 1px 0 rgba(255,255,255,0.8);
+    }
+    #peel-prompt.show { opacity: 1; }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    /* ====== Quiz overlay ====== */
+    #quiz-overlay {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.4);
+      z-index: 50;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    #quiz-overlay.show {
+      display: flex;
+    }
+    #quiz-card {
+      background: #fff;
+      border-radius: 32px;
+      padding: 48px 56px;
+      text-align: center;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      animation: popIn 0.4s ease;
+    }
+    @keyframes popIn {
+      from { transform: scale(0.5); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    #quiz-question {
+      font-size: 32px;
+      color: #333;
+      margin-bottom: 32px;
+      line-height: 1.4;
+    }
+    #quiz-options {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .quiz-btn {
+      padding: 16px 36px;
+      font-size: 28px;
+      border: 3px solid #eee;
+      border-radius: 20px;
+      background: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 120px;
+    }
+    .quiz-btn:hover {
+      border-color: #FF6B35;
+      background: #FFF3EC;
+    }
+    .quiz-btn.correct {
+      border-color: #4CAF50;
+      background: #E8F5E9;
+      animation: correctPulse 0.5s;
+    }
+    .quiz-btn.wrong {
+      border-color: #F44336;
+      background: #FFEBEE;
+      animation: shake 0.4s;
+    }
+    @keyframes correctPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+    #quiz-result {
+      font-size: 36px;
+      margin-top: 24px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    /* ====== Completion celebration ====== */
+    #celebration {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      background: rgba(255,248,236,0.95);
+      backdrop-filter: blur(8px);
+    }
+    #celebration.show {
+      display: flex;
+    }
+    #celebration h2 {
+      font-size: 56px;
+      color: #FF6B35;
+      animation: celebBounce 1s infinite;
+    }
+    #celebration p {
+      font-size: 28px;
+      color: #666;
+      margin-top: 16px;
+    }
+    #celebration button {
+      margin-top: 32px;
+      padding: 16px 48px;
+      font-size: 24px;
+      background: #FF6B35;
+      color: #fff;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+    }
+    @keyframes celebBounce {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-20px) rotate(2deg); }
+    }
+
+    /* ====== Confetti ====== */
+    .confetti {
+      position: fixed;
+      width: 12px; height: 12px;
+      z-index: 61;
+      pointer-events: none;
+      animation: confettiFall linear forwards;
+    }
+    @keyframes confettiFall {
+      0% { opacity: 1; transform: translateY(-20px) rotate(0deg); }
+      100% { opacity: 0; transform: translateY(100vh) rotate(720deg); }
+    }
+
+    /* ====== Peel particles ====== */
+    .peel-particle {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 20;
+      animation: particleFly 0.8s ease-out forwards;
+    }
+    @keyframes particleFly {
+      0% { opacity: 1; transform: scale(1) translateY(0); }
+      100% { opacity: 0; transform: scale(0) translateY(-80px); }
+    }
+
+    /* ====== Stars reward ====== */
+    .star-burst {
+      position: fixed;
+      font-size: 40px;
+      pointer-events: none;
+      z-index: 25;
+      animation: starPop 1s ease-out forwards;
+    }
+    @keyframes starPop {
+      0% { opacity: 1; transform: scale(0) rotate(0deg); }
+      50% { opacity: 1; transform: scale(1.2) rotate(180deg); }
+      100% { opacity: 0; transform: scale(0.5) rotate(360deg) translateY(-100px); }
+    }
+
+    /* ====== Loading overlay ====== */
+    #loading {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      background: #FFF8EC;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.5s;
+    }
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #loading h2 { font-size: 36px; color: #FF6B35; margin-bottom: 20px; }
+    #loading p { font-size: 20px; color: #999; }
+    .spinner {
+      width: 50px; height: 50px;
+      border: 5px solid #FFD3B6;
+      border-top-color: #FF6B35;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ====== Hand visual feedback ====== */
+    #hand-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      pointer-events: none;
+      z-index: 5;
+      transform: scaleX(-1);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <h2>正在启动摄像头...</h2>
+    <p>请允许浏览器使用摄像头</p>
+  </div>
+
+  <video id="camera" autoplay playsinline></video>
+  <canvas id="hand-canvas"></canvas>
+
+  <div id="stage">
+    <div id="title-bar">
+      <h1>吃水果吧</h1>
+      <div id="fruit-name">橘子</div>
+    </div>
+
+    <div id="fruit-container">
+      <img id="fruit-whole" class="fruit-img" src="" alt="水果">
+      <img id="fruit-peeled" class="fruit-img" src="" alt="水果剥开">
+    </div>
+
+    <div id="peel-prompt">✊ 握拳来剥皮吧！</div>
+    <div id="peel-progress-wrap"><div id="peel-progress"></div></div>
+    <div id="dots"></div>
+  </div>
+
+  <!-- Quiz overlay -->
+  <div id="quiz-overlay">
+    <div id="quiz-card">
+      <div id="quiz-question"></div>
+      <div id="quiz-options"></div>
+      <div id="quiz-result"></div>
+    </div>
+  </div>
+
+  <!-- Completion celebration -->
+  <div id="celebration">
+    <h2>🎉 太棒了！全部吃完了！</h2>
+    <p>你认识了所有的水果，真厉害！</p>
+    <button onclick="resetGame()">再玩一次</button>
+  </div>
+
+  <div id="gesture-indicator">等待手势...</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
+
+  <script>
+    // ====== Audio system (Web Audio API synthesized sounds) ======
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      const now = audioCtx.currentTime;
+      switch(type) {
+        case 'swipe': {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(400, now + 0.15);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.15);
+          break;
+        }
+        case 'peel': {
+          // Crunchy peeling sound
+          const bufferSize = audioCtx.sampleRate * 0.4;
+          const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < bufferSize; i++) {
+            const t = i / audioCtx.sampleRate;
+            data[i] = (Math.random() * 2 - 1) * Math.exp(-t * 8) * 0.3;
+            if (Math.random() < 0.02) data[i] *= 3;
+          }
+          const src = audioCtx.createBufferSource();
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = 'bandpass';
+          filter.frequency.value = 2000;
+          filter.Q.value = 1;
+          src.buffer = buffer;
+          src.connect(filter).connect(audioCtx.destination);
+          src.start(now);
+          break;
+        }
+        case 'success': {
+          [523, 659, 784].forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, now + i * 0.12);
+            gain.gain.linearRampToValueAtTime(0.2, now + i * 0.12 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.4);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.4);
+          });
+          break;
+        }
+        case 'correct': {
+          [660, 880].forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.2, now + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.3);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(now + i * 0.15);
+            osc.stop(now + i * 0.15 + 0.3);
+          });
+          break;
+        }
+        case 'wrong': {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'square';
+          osc.frequency.value = 200;
+          gain.gain.setValueAtTime(0.1, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+          break;
+        }
+        case 'celebration': {
+          const notes = [523, 587, 659, 698, 784, 880, 988, 1047];
+          notes.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, now + i * 0.1);
+            gain.gain.linearRampToValueAtTime(0.15, now + i * 0.1 + 0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+            osc.connect(gain).connect(audioCtx.destination);
+            osc.start(now + i * 0.1);
+            osc.stop(now + i * 0.1 + 0.3);
+          });
+          break;
+        }
+        case 'peelTick': {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = 300 + Math.random() * 200;
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.08);
+          break;
+        }
+      }
+    }
+
+    // ====== Fruit data with colors and quiz ======
+    const fruits = [
+      {
+        name: '橘子', id: 'orange', emoji: '🍊',
+        prompt: '吃橘子吧，咕噜。',
+        bg: '#FFF3E0', nameColor: '#E65100',
+        quiz: { question: '橘子是什么颜色的？', options: ['红色','橙色','绿色'], answer: 1 }
+      },
+      {
+        name: '苹果', id: 'apple', emoji: '🍎',
+        prompt: '吃苹果吧，咔嚓。',
+        bg: '#FFEBEE', nameColor: '#C62828',
+        quiz: { question: '苹果是什么味道的？', options: ['咸的','辣的','甜的'], answer: 2 }
+      },
+      {
+        name: '猕猴桃', id: 'kiwi', emoji: '🥝',
+        prompt: '吃猕猴桃吧，咕噜。',
+        bg: '#E8F5E9', nameColor: '#2E7D32',
+        quiz: { question: '猕猴桃里面是什么颜色？', options: ['绿色','红色','白色'], answer: 0 }
+      },
+      {
+        name: '香蕉', id: 'banana', emoji: '🍌',
+        prompt: '吃香蕉吧，剥开。',
+        bg: '#FFFDE7', nameColor: '#F9A825',
+        quiz: { question: '香蕉是什么形状的？', options: ['圆圆的','弯弯的','方方的'], answer: 1 }
+      },
+      {
+        name: '西瓜', id: 'watermelon', emoji: '🍉',
+        prompt: '吃西瓜吧，咔嚓。',
+        bg: '#E8F5E9', nameColor: '#1B5E20',
+        quiz: { question: '西瓜里面是什么颜色？', options: ['绿色','黄色','红色'], answer: 2 }
+      },
+      {
+        name: '桃子', id: 'peach', emoji: '🍑',
+        prompt: '吃桃子吧，咕噜。',
+        bg: '#FFF0F0', nameColor: '#D84315',
+        quiz: { question: '桃子摸起来是什么感觉？', options: ['滑滑的','毛毛的','硬硬的'], answer: 1 }
+      },
+      {
+        name: '葡萄', id: 'grape', emoji: '🍇',
+        prompt: '吃葡萄吧，嗯嗯嗯。',
+        bg: '#F3E5F5', nameColor: '#6A1B9A',
+        quiz: { question: '葡萄是一颗一颗的还是一串一串的？', options: ['一颗一颗','一串一串','一片一片'], answer: 1 }
+      },
+      {
+        name: '菠萝', id: 'pineapple', emoji: '🍍',
+        prompt: '吃菠萝吧，咔嚓。',
+        bg: '#FFF8E1', nameColor: '#E65100',
+        quiz: { question: '菠萝的头上有什么？', options: ['花朵','绿叶子','小帽子'], answer: 1 }
+      },
+    ];
+
+    let currentIndex = 0;
+    let isPeeled = false;
+    let isAnimating = false;
+    let completedFruits = new Set();
+    let quizActive = false;
+
+    const fruitWhole = document.getElementById('fruit-whole');
+    const fruitPeeled = document.getElementById('fruit-peeled');
+    const fruitContainer = document.getElementById('fruit-container');
+    const fruitNameEl = document.getElementById('fruit-name');
+    const gestureIndicator = document.getElementById('gesture-indicator');
+    const dotsContainer = document.getElementById('dots');
+    const peelPrompt = document.getElementById('peel-prompt');
+    const peelProgressWrap = document.getElementById('peel-progress-wrap');
+    const peelProgress = document.getElementById('peel-progress');
+    const loadingEl = document.getElementById('loading');
+    const videoEl = document.getElementById('camera');
+    const canvasEl = document.getElementById('hand-canvas');
+    const canvasCtx = canvasEl.getContext('2d');
+    const quizOverlay = document.getElementById('quiz-overlay');
+    const quizQuestion = document.getElementById('quiz-question');
+    const quizOptions = document.getElementById('quiz-options');
+    const quizResult = document.getElementById('quiz-result');
+    const celebrationEl = document.getElementById('celebration');
+
+    // ====== Initialize dots with fruit emojis ======
+    fruits.forEach((f, i) => {
+      const dot = document.createElement('div');
+      dot.className = 'dot' + (i === 0 ? ' active' : '');
+      dot.textContent = f.emoji;
+      dotsContainer.appendChild(dot);
+    });
+
+    // ====== Load fruit ======
+    function loadFruit(index) {
+      const fruit = fruits[index];
+      fruitWhole.src = `assets/${fruit.id}_whole.png`;
+      fruitPeeled.src = `assets/${fruit.id}_peeled.png`;
+      fruitNameEl.textContent = fruit.name;
+      fruitNameEl.style.color = fruit.nameColor;
+      fruitContainer.classList.remove('peeled');
+      isPeeled = false;
+
+      // Background color transition
+      document.body.style.background = fruit.bg;
+
+      // Show peel prompt only if not completed
+      if (completedFruits.has(index)) {
+        peelPrompt.classList.remove('show');
+      } else {
+        peelPrompt.classList.add('show');
+      }
+
+      // Reset peel progress
+      peelProgressWrap.classList.remove('show');
+      peelProgress.style.width = '0%';
+
+      // Update dots
+      document.querySelectorAll('.dot').forEach((d, i) => {
+        d.classList.toggle('active', i === index);
+      });
+
+      speak(fruit.prompt);
+    }
+
+    // ====== Text-to-speech ======
+    function speak(text, onEnd) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 0.8;
+        u.pitch = 1.3;
+        if (onEnd) u.onend = onEnd;
+        window.speechSynthesis.speak(u);
+      } else if (onEnd) {
+        setTimeout(onEnd, 1000);
+      }
+    }
+
+    // ====== Switch fruit ======
+    function switchFruit(direction) {
+      if (isAnimating || quizActive) return;
+      isAnimating = true;
+      playSound('swipe');
+
+      const slideOut = direction === 'left' ? 'swipe-left' : 'swipe-right';
+      const slideIn = direction === 'left' ? 'slide-in-left' : 'slide-in-right';
+
+      fruitContainer.classList.add(slideOut);
+      fruitNameEl.style.opacity = '0';
+
+      setTimeout(() => {
+        if (direction === 'left') {
+          currentIndex = (currentIndex + 1) % fruits.length;
+        } else {
+          currentIndex = (currentIndex - 1 + fruits.length) % fruits.length;
+        }
+        loadFruit(currentIndex);
+        fruitContainer.classList.remove(slideOut);
+        fruitContainer.classList.add(slideIn);
+        fruitNameEl.style.opacity = '1';
+
+        setTimeout(() => {
+          fruitContainer.classList.remove(slideIn);
+          isAnimating = false;
+        }, 400);
+      }, 400);
+    }
+
+    // ====== Peel with progress ======
+    let peelProgressValue = 0;
+
+    function updatePeelProgress(fistHeldMs) {
+      if (isPeeled || isAnimating || quizActive) return;
+      const PEEL_DURATION = 1200;
+      peelProgressValue = Math.min(fistHeldMs / PEEL_DURATION, 1);
+      peelProgressWrap.classList.add('show');
+      peelProgress.style.width = (peelProgressValue * 100) + '%';
+
+      if (peelProgressValue >= 1) {
+        completePeel();
+      }
+    }
+
+    function resetPeelProgress() {
+      peelProgressValue = 0;
+      peelProgressWrap.classList.remove('show');
+      peelProgress.style.width = '0%';
+    }
+
+    function completePeel() {
+      if (isPeeled || isAnimating) return;
+      isPeeled = true;
+      isAnimating = true;
+      peelPrompt.classList.remove('show');
+      peelProgressWrap.classList.remove('show');
+      fruitContainer.classList.add('peeled');
+
+      playSound('peel');
+      spawnParticles();
+      spawnStars();
+
+      speak('哇，剥开啦！好好吃！', () => {
+        if (!completedFruits.has(currentIndex)) {
+          setTimeout(() => showQuiz(), 300);
+        }
+      });
+
+      setTimeout(() => { isAnimating = false; }, 600);
+    }
+
+    // ====== Particle effects ======
+    function spawnParticles() {
+      const fruit = fruits[currentIndex];
+      const colors = ['#FF6B35', '#FFD3B6', '#FFE66D', fruit.nameColor, '#fff'];
+      for (let i = 0; i < 25; i++) {
+        const p = document.createElement('div');
+        p.className = 'peel-particle';
+        p.style.background = colors[Math.floor(Math.random() * colors.length)];
+        p.style.left = (window.innerWidth / 2 + (Math.random() - 0.5) * 350) + 'px';
+        p.style.top = (window.innerHeight / 2 + (Math.random() - 0.5) * 350) + 'px';
+        p.style.width = p.style.height = (8 + Math.random() * 18) + 'px';
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 800);
+      }
+    }
+
+    function spawnStars() {
+      const stars = ['⭐','🌟','✨','💫'];
+      for (let i = 0; i < 8; i++) {
+        const s = document.createElement('div');
+        s.className = 'star-burst';
+        s.textContent = stars[Math.floor(Math.random() * stars.length)];
+        s.style.left = (window.innerWidth / 2 + (Math.random() - 0.5) * 400) + 'px';
+        s.style.top = (window.innerHeight / 2 + (Math.random() - 0.5) * 300) + 'px';
+        s.style.animationDelay = (Math.random() * 0.3) + 's';
+        document.body.appendChild(s);
+        setTimeout(() => s.remove(), 1300);
+      }
+    }
+
+    function spawnConfetti() {
+      const colors = ['#FF6B35','#FFE66D','#4CAF50','#2196F3','#E91E63','#9C27B0','#FF9800'];
+      const shapes = ['circle','rect'];
+      for (let i = 0; i < 60; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.background = colors[Math.floor(Math.random() * colors.length)];
+        c.style.left = (Math.random() * 100) + 'vw';
+        c.style.top = '-20px';
+        c.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+        c.style.animationDelay = (Math.random() * 1) + 's';
+        if (shapes[Math.floor(Math.random() * 2)] === 'rect') {
+          c.style.borderRadius = '2px';
+          c.style.width = '8px';
+          c.style.height = '16px';
+        }
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 4000);
+      }
+    }
+
+    // ====== Quiz system ======
+    function showQuiz() {
+      const fruit = fruits[currentIndex];
+      const quiz = fruit.quiz;
+      quizActive = true;
+
+      quizQuestion.textContent = quiz.question;
+      quizOptions.innerHTML = '';
+      quizResult.textContent = '';
+      quizResult.style.opacity = '0';
+
+      speak(quiz.question);
+
+      quiz.options.forEach((opt, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'quiz-btn';
+        btn.textContent = opt;
+        btn.addEventListener('click', () => handleQuizAnswer(i, btn));
+        quizOptions.appendChild(btn);
+      });
+
+      quizOverlay.classList.add('show');
+    }
+
+    function handleQuizAnswer(selected, btn) {
+      const quiz = fruits[currentIndex].quiz;
+      const allBtns = document.querySelectorAll('.quiz-btn');
+      allBtns.forEach(b => b.style.pointerEvents = 'none');
+
+      if (selected === quiz.answer) {
+        btn.classList.add('correct');
+        quizResult.textContent = '🎉 回答正确！太棒了！';
+        quizResult.style.opacity = '1';
+        playSound('correct');
+        speak('回答正确，太棒了！');
+
+        completedFruits.add(currentIndex);
+        updateDotCompleted(currentIndex);
+
+        setTimeout(() => {
+          quizOverlay.classList.remove('show');
+          quizActive = false;
+          playSound('success');
+          spawnStars();
+
+          if (completedFruits.size === fruits.length) {
+            setTimeout(showCelebration, 800);
+          }
+        }, 2000);
+      } else {
+        btn.classList.add('wrong');
+        quizResult.textContent = '再想想哦～';
+        quizResult.style.opacity = '1';
+        playSound('wrong');
+        speak('再想想哦');
+
+        setTimeout(() => {
+          btn.classList.remove('wrong');
+          allBtns.forEach(b => b.style.pointerEvents = 'auto');
+          quizResult.style.opacity = '0';
+        }, 1000);
+      }
+    }
+
+    function updateDotCompleted(index) {
+      const dots = document.querySelectorAll('.dot');
+      dots[index].classList.add('completed');
+    }
+
+    // ====== Celebration ======
+    function showCelebration() {
+      celebrationEl.classList.add('show');
+      playSound('celebration');
+      spawnConfetti();
+      speak('哇，你太厉害了！所有水果都吃完了！');
+
+      setInterval(() => {
+        if (celebrationEl.classList.contains('show')) {
+          spawnConfetti();
+        }
+      }, 3000);
+    }
+
+    function resetGame() {
+      completedFruits.clear();
+      currentIndex = 0;
+      document.querySelectorAll('.dot').forEach(d => d.classList.remove('completed'));
+      celebrationEl.classList.remove('show');
+      loadFruit(0);
+    }
+
+    // ====== Gesture detection ======
+    let palmXHistory = [];
+    let lastSwipeTime = 0;
+    let fistStartTime = 0;
+    let lastPeelTickTime = 0;
+    const SWIPE_COOLDOWN = 1000;
+
+    function classifyGesture(landmarks) {
+      const tips = [8, 12, 16, 20];
+      const pips = [6, 10, 14, 18];
+      let fingersUp = 0;
+      for (let i = 0; i < 4; i++) {
+        if (landmarks[tips[i]].y < landmarks[pips[i]].y) fingersUp++;
+      }
+      const thumbTip = landmarks[4];
+      const thumbIp = landmarks[3];
+      const wrist = landmarks[0];
+      if (Math.abs(thumbTip.x - wrist.x) > Math.abs(thumbIp.x - wrist.x)) fingersUp++;
+
+      if (fingersUp >= 4) return 'open';
+      if (fingersUp <= 1) return 'fist';
+      return 'other';
+    }
+
+    function processGesture(landmarks) {
+      const gesture = classifyGesture(landmarks);
+      const wristX = landmarks[0].x;
+      const now = Date.now();
+
+      if (gesture === 'open') {
+        gestureIndicator.textContent = '🖐️ 左右滑动切换水果';
+        gestureIndicator.classList.remove('fist');
+      } else if (gesture === 'fist') {
+        gestureIndicator.textContent = '✊ 握拳中...持续握拳来剥皮！';
+        gestureIndicator.classList.add('fist');
+      } else {
+        gestureIndicator.textContent = '识别中...';
+        gestureIndicator.classList.remove('fist');
+      }
+
+      // Swipe detection
+      if (gesture === 'open') {
+        palmXHistory.push({ x: wristX, t: now });
+        palmXHistory = palmXHistory.filter(p => now - p.t < 500);
+
+        if (palmXHistory.length >= 5 && now - lastSwipeTime > SWIPE_COOLDOWN) {
+          const dx = palmXHistory[palmXHistory.length - 1].x - palmXHistory[0].x;
+          if (dx > 0.15) {
+            switchFruit('left');
+            lastSwipeTime = now;
+            palmXHistory = [];
+          } else if (dx < -0.15) {
+            switchFruit('right');
+            lastSwipeTime = now;
+            palmXHistory = [];
+          }
+        }
+        fistStartTime = 0;
+        resetPeelProgress();
+      }
+
+      // Fist = peel with progress
+      if (gesture === 'fist') {
+        if (fistStartTime === 0) fistStartTime = now;
+        const held = now - fistStartTime;
+        updatePeelProgress(held);
+
+        if (now - lastPeelTickTime > 150) {
+          playSound('peelTick');
+          lastPeelTickTime = now;
+        }
+        palmXHistory = [];
+      }
+
+      if (gesture === 'other') {
+        fistStartTime = 0;
+        palmXHistory = [];
+        resetPeelProgress();
+      }
+    }
+
+    // ====== MediaPipe Hands ======
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
+    });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.5,
+    });
+
+    hands.onResults((results) => {
+      canvasEl.width = videoEl.videoWidth || 1280;
+      canvasEl.height = videoEl.videoHeight || 720;
+      canvasCtx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+          color: 'rgba(255, 107, 53, 0.5)', lineWidth: 3,
+        });
+        drawLandmarks(canvasCtx, landmarks, {
+          color: 'rgba(255, 107, 53, 0.8)', lineWidth: 1, radius: 4,
+        });
+        processGesture(landmarks);
+      } else {
+        gestureIndicator.textContent = '未检测到手 - 请将手放在摄像头前';
+        gestureIndicator.classList.remove('fist');
+        palmXHistory = [];
+        fistStartTime = 0;
+        resetPeelProgress();
+      }
+    });
+
+    // ====== Start camera ======
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: 1280, height: 720, facingMode: 'user' }
+        });
+        videoEl.srcObject = stream;
+        await videoEl.play();
+        const camera = new Camera(videoEl, {
+          onFrame: async () => { await hands.send({ image: videoEl }); },
+          width: 1280, height: 720,
+        });
+        camera.start();
+        setTimeout(() => loadingEl.classList.add('hidden'), 500);
+      } catch (err) {
+        loadingEl.innerHTML = `
+          <h2 style="color:#E8430A">摄像头启动失败</h2>
+          <p style="margin-top:12px">${err.message}</p>
+          <p style="margin-top:20px;color:#666">请确保浏览器有摄像头权限，然后刷新页面</p>
+          <button onclick="location.reload()" style="margin-top:20px;padding:12px 32px;font-size:18px;background:#FF6B35;color:#fff;border:none;border-radius:12px;cursor:pointer">重新加载</button>
+        `;
+      }
+    }
+
+    // ====== Keyboard fallback ======
+    document.addEventListener('keydown', (e) => {
+      if (quizActive) return;
+      if (e.key === 'ArrowLeft') switchFruit('right');
+      if (e.key === 'ArrowRight') switchFruit('left');
+      if (e.key === ' ') completePeel();
+    });
+
+    // ====== Init ======
+    loadFruit(0);
+    startCamera();
+  </script>
+</body>
+</html>
